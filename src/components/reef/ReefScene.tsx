@@ -164,8 +164,8 @@ function Seafloor() {
 /* ------------------------------------------------------------------ */
 /* Bioluminescent particle layers                                       */
 /* ------------------------------------------------------------------ */
-const CYAN = new THREE.Color("#1fb9ad");
-const CORAL_WARM = new THREE.Color("#c2604a");
+const CYAN = new THREE.Color("#4fe6d6");
+const CORAL_WARM = new THREE.Color("#e8815f");
 const DULL = new THREE.Color("#8fa6a0");
 
 const glowVertex = /* glsl */ `
@@ -185,7 +185,7 @@ const glowVertex = /* glsl */ `
     vAlpha = clamp(0.35 + 0.65 * pulse * 0.5, 0.0, 1.0);
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     float dist = max(-mv.z, 3.0);
-    gl_PointSize = clamp(aSize * uScale * pulse * (1.0 + uLife * 0.5) * (140.0 / dist), 1.0, 14.0);
+    gl_PointSize = clamp(aSize * uScale * pulse * (1.0 + uLife * 0.5) * (140.0 / dist), 1.0, 20.0);
     gl_Position = projectionMatrix * mv;
   }
 `;
@@ -200,7 +200,7 @@ const glowFragment = /* glsl */ `
     if (d > 0.5) discard;
     float core = smoothstep(0.5, 0.0, d);
     float halo = pow(core, 3.0);
-    gl_FragColor = vec4(vColor * (0.3 + halo * 0.6), core * halo * vAlpha * uOpacity * 0.5);
+    gl_FragColor = vec4(vColor * (0.3 + halo * 0.6), core * halo * vAlpha * uOpacity * 0.75);
   }
 `;
 
@@ -457,7 +457,7 @@ function ParticleField({ low }: { low: boolean }) {
         zNear: -14,
         zFar: -2,
         spread: 32,
-        size: [0.9, 1.7],
+        size: [1.1, 2.1],
         rise: [0.16, 0.42],
         flicker: 0.55,
         opacity: 0.5,
