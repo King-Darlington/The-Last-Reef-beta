@@ -162,41 +162,139 @@ function Seafloor() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Drifting plankton / bubbles                                          */
+/* Bioluminescent particle layers                                       */
 /* ------------------------------------------------------------------ */
-function Particles({ count }: { count: number }) {
+const CYAN = new THREE.Color("#4fe6d6");
+const CORAL_WARM = new THREE.Color("#e8815f");
+const DULL = new THREE.Color("#8fa6a0");
+
+const glowVertex = /* glsl */ `
+  attribute float aSize;
+  attribute float aPhase;
+  attribute float aSpeed;
+  attribute vec3 aColor;
+  uniform float uTime;
+  uniform float uLife;
+  uniform float uScale;
+  uniform float uFlicker;
+  varying vec3 vColor;
+  varying float vAlpha;
+  void main() {
+    float pulse = 1.0 + uFlicker * sin(uTime * (0.8 + aSpeed * 2.2) + aPhase);
+    vColor = aColor;
+    vAlpha = clamp(0.35 + 0.65 * pulse * 0.5, 0.0, 1.0);
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    float dist = max(-mv.z, 3.0);
+    gl_PointSize = clamp(aSize * uScale * pulse * (1.0 + uLife * 0.5) * (140.0 / dist), 1.0, 20.0);
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+const glowFragment = /* glsl */ `
+  uniform float uOpacity;
+  varying vec3 vColor;
+  varying float vAlpha;
+  void main() {
+    vec2 uv = gl_PointCoord - 0.5;
+    float d = length(uv);
+    if (d > 0.5) discard;
+    float core = smoothstep(0.5, 0.0, d);
+    float halo = pow(core, 3.0);
+    gl_FragColor = vec4(vColor * (0.3 + halo * 0.6), core * halo * vAlpha * uOpacity * 0.75);
+  }
+`;
+
+type LayerConfig = {
+  count: number;
+  seed: number;
+  /** z range (negative = further away) */
+  zNear: number;
+  zFar: number;
+  spread: number;
+  size: [number, number];
+  rise: [number, number];
+  flicker: number;
+  opacity: number;
+  warmth: number;
+  drift: number;
+};
+
+function ParticleLayer({ cfg }: { cfg: LayerConfig }) {
   const pointsRef = useRef<THREE.Points>(null);
-  const matRef = useRef<THREE.PointsMaterial>(null);
+  const matRef = useRef<THREE.ShaderMaterial>(null);
   const life = useRef(0);
 
-  const { positions, speeds } = useMemo(() => {
-    const rand = rng(4242);
-    const positions = new Float32Array(count * 3);
-    const speeds = new Float32Array(count);
-    for (let i = 0; i < count; i++) {
-      positions[i * 3] = (rand() - 0.5) * 40;
-      positions[i * 3 + 1] = -4 + rand() * 16;
-      positions[i * 3 + 2] = -rand() * 34 + 3;
-      speeds[i] = 0.12 + rand() * 0.5;
+  const { positions, sizes, phases, speeds, colors, live, dead } = useMemo(() => {
+    const rand = rng(cfg.seed);
+    const n = cfg.count;
+    const positions = new Float32Array(n * 3);
+    const sizes = new Float32Array(n);
+    const phases = new Float32Array(n);
+    const speeds = new Float32Array(n);
+    const colors = new Float32Array(n * 3);
+    const live: THREE.Color[] = [];
+    const dead: THREE.Color[] = [];
+    const c = new THREE.Color();
+    for (let i = 0; i < n; i++) {
+      positions[i * 3] = (rand() - 0.5) * cfg.spread;
+      positions[i * 3 + 1] = -4 + rand() * 18;
+      positions[i * 3 + 2] = cfg.zNear + rand() * (cfg.zFar - cfg.zNear);
+      sizes[i] = cfg.size[0] + rand() * (cfg.size[1] - cfg.size[0]);
+      phases[i] = rand() * Math.PI * 2;
+      speeds[i] = cfg.rise[0] + rand() * (cfg.rise[1] - cfg.rise[0]);
+      c.copy(CYAN).lerp(CORAL_WARM, Math.pow(rand(), 1.6) * cfg.warmth);
+      live.push(c.clone());
+      dead.push(DULL.clone().lerp(c, 0.15));
+      colors[i * 3] = dead[i].r;
+      colors[i * 3 + 1] = dead[i].g;
+      colors[i * 3 + 2] = dead[i].b;
     }
-    return { positions, speeds };
-  }, [count]);
+    return { positions, sizes, phases, speeds, colors, live, dead };
+  }, [cfg]);
 
-  useFrame((_, d) => {
+  const uniforms = useMemo(
+    () => ({
+      uTime: { value: 0 },
+      uLife: { value: 0 },
+      uScale: { value: 1 },
+      uFlicker: { value: cfg.flicker },
+      uOpacity: { value: cfg.opacity },
+    }),
+    [cfg],
+  );
+
+  useFrame((state, d) => {
     life.current += (reefState.target - life.current) * Math.min(1, d * 1.1);
+    const l = life.current;
     const geo = pointsRef.current?.geometry;
     if (!geo) return;
+
+    const boost = 1 + reefState.scrollSpeed * 2.6 * cfg.drift;
     const arr = geo.attributes.position.array as Float32Array;
-    for (let i = 0; i < count; i++) {
-      arr[i * 3 + 1] += speeds[i] * d * (0.4 + life.current);
-      arr[i * 3] += Math.sin(arr[i * 3 + 1] * 0.5 + i) * d * 0.06;
-      if (arr[i * 3 + 1] > 12) arr[i * 3 + 1] = -4;
+    const t = state.clock.elapsedTime;
+    for (let i = 0; i < cfg.count; i++) {
+      arr[i * 3 + 1] += speeds[i] * d * (0.35 + l) * boost;
+      arr[i * 3] += Math.sin(arr[i * 3 + 1] * 0.4 + phases[i]) * d * 0.12 * boost;
+      if (arr[i * 3 + 1] > 13) arr[i * 3 + 1] = -4.5;
     }
     geo.attributes.position.needsUpdate = true;
+
+    // colour drifts from dull grey particulate to bioluminescent glow
+    const carr = geo.attributes.aColor.array as Float32Array;
+    const scratch = new THREE.Color();
+    for (let i = 0; i < cfg.count; i++) {
+      scratch.copy(dead[i]).lerp(live[i], l);
+      carr[i * 3] = scratch.r;
+      carr[i * 3 + 1] = scratch.g;
+      carr[i * 3 + 2] = scratch.b;
+    }
+    geo.attributes.aColor.needsUpdate = true;
+
     if (matRef.current) {
-      matRef.current.opacity = 0.18 + life.current * 0.42;
-      matRef.current.size = 0.028 + life.current * 0.03;
-      matRef.current.color.setHex(life.current > 0.5 ? 0x9dfff0 : 0x8fa6a0);
+      matRef.current.uniforms.uTime.value = t;
+      matRef.current.uniforms.uLife.value = l;
+      matRef.current.uniforms.uOpacity.value = cfg.opacity * (0.14 + l * 0.75);
+      matRef.current.uniforms.uFlicker.value = cfg.flicker * (0.25 + l);
     }
   });
 
@@ -204,19 +302,196 @@ function Particles({ count }: { count: number }) {
     <points ref={pointsRef} frustumCulled={false}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        <bufferAttribute attach="attributes-aColor" args={[colors, 3]} />
+        <bufferAttribute attach="attributes-aSize" args={[sizes, 1]} />
+        <bufferAttribute attach="attributes-aPhase" args={[phases, 1]} />
+        <bufferAttribute attach="attributes-aSpeed" args={[speeds, 1]} />
       </bufferGeometry>
-      <pointsMaterial
+      <shaderMaterial
         ref={matRef}
+        vertexShader={glowVertex}
+        fragmentShader={glowFragment}
+        uniforms={uniforms}
         transparent
         depthWrite={false}
-        sizeAttenuation
         blending={THREE.AdditiveBlending}
-        size={0.04}
-        opacity={0.2}
       />
     </points>
   );
 }
+
+/* Foreground jellyfish-like drifters with a trailing light tail */
+const TRAIL = 6;
+
+function Jellies({ count }: { count: number }) {
+  const bellRef = useRef<THREE.InstancedMesh>(null);
+  const trailRef = useRef<THREE.InstancedMesh>(null);
+  const bellMat = useRef<THREE.MeshStandardMaterial>(null);
+  const trailMat = useRef<THREE.MeshBasicMaterial>(null);
+  const life = useRef(0);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const scratch = useMemo(() => new THREE.Color(), []);
+
+  const jellies = useMemo(() => {
+    const rand = rng(3121);
+    return Array.from({ length: count }, () => ({
+      x: (rand() - 0.5) * 16,
+      z: 1.5 + rand() * 4.5,
+      y: -3 + rand() * 12,
+      speed: 0.22 + rand() * 0.3,
+      sway: 0.6 + rand() * 1.5,
+      phase: rand() * Math.PI * 2,
+      scale: 0.35 + rand() * 0.45,
+      color: CYAN.clone().lerp(CORAL_WARM, rand() * 0.55),
+    }));
+  }, [count]);
+
+  useFrame((state, d) => {
+    life.current += (reefState.target - life.current) * Math.min(1, d * 0.9);
+    const l = life.current;
+    const t = state.clock.elapsedTime;
+    const boost = 1 + reefState.scrollSpeed * 2.2;
+    const bell = bellRef.current;
+    const trail = trailRef.current;
+    if (!bell || !trail) return;
+
+    for (let i = 0; i < jellies.length; i++) {
+      const j = jellies[i];
+      j.y += j.speed * d * (0.25 + l) * boost;
+      if (j.y > 11) j.y = -5;
+      const pulse = 1 + Math.sin(t * 1.4 + j.phase) * 0.14;
+      const x = j.x + Math.sin(t * 0.25 + j.phase) * j.sway;
+
+      dummy.position.set(x, j.y, j.z);
+      dummy.scale.set(j.scale * pulse * l, j.scale * (1.15 - (pulse - 1)) * l, j.scale * pulse * l);
+      dummy.rotation.set(0, t * 0.1 + j.phase, Math.sin(t * 0.3 + j.phase) * 0.1);
+      dummy.updateMatrix();
+      bell.setMatrixAt(i, dummy.matrix);
+      bell.setColorAt(i, j.color);
+
+      for (let s = 0; s < TRAIL; s++) {
+        const k = (s + 1) / TRAIL;
+        const idx = i * TRAIL + s;
+        dummy.position.set(
+          x - Math.sin(t * 0.25 + j.phase) * j.sway * k * 0.35,
+          j.y - k * j.scale * 3.4,
+          j.z,
+        );
+        const w = j.scale * (0.34 - k * 0.22) * l;
+        dummy.scale.set(w, w, w);
+        dummy.rotation.set(0, 0, Math.sin(t * 1.2 + j.phase + s) * 0.2);
+        dummy.updateMatrix();
+        trail.setMatrixAt(idx, dummy.matrix);
+        scratch.copy(j.color).multiplyScalar(1 - k * 0.75);
+        trail.setColorAt(idx, scratch);
+      }
+    }
+    bell.instanceMatrix.needsUpdate = true;
+    trail.instanceMatrix.needsUpdate = true;
+    if (bell.instanceColor) bell.instanceColor.needsUpdate = true;
+    if (trail.instanceColor) trail.instanceColor.needsUpdate = true;
+    if (bellMat.current) {
+      bellMat.current.emissiveIntensity = l * 0.35;
+      bellMat.current.opacity = 0.03 + l * 0.12;
+    }
+    if (trailMat.current) trailMat.current.opacity = l * 0.1;
+  });
+
+  return (
+    <group>
+      <instancedMesh ref={bellRef} args={[undefined, undefined, count]} frustumCulled={false}>
+        <sphereGeometry args={[1, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.62]} />
+        <meshStandardMaterial
+          ref={bellMat}
+          vertexColors
+          emissive="#2fd8c8"
+          emissiveIntensity={0}
+          transparent
+          opacity={0.1}
+          roughness={0.25}
+          depthWrite={false}
+          side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+        />
+      </instancedMesh>
+      <instancedMesh
+        ref={trailRef}
+        args={[undefined, undefined, count * TRAIL]}
+        frustumCulled={false}
+      >
+        <sphereGeometry args={[1, 8, 6]} />
+        <meshBasicMaterial
+          ref={trailMat}
+          vertexColors
+          transparent
+          opacity={0}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </instancedMesh>
+    </group>
+  );
+}
+
+function ParticleField({ low }: { low: boolean }) {
+  const layers = useMemo<LayerConfig[]>(
+    () => [
+      {
+        // tiny distant plankton
+        count: low ? 420 : 1200,
+        seed: 4242,
+        zNear: -34,
+        zFar: -14,
+        spread: 46,
+        size: [0.5, 1.1],
+        rise: [0.05, 0.16],
+        flicker: 0.18,
+        opacity: 0.4,
+        warmth: 0.35,
+        drift: 0.35,
+      },
+      {
+        // mid-ground pulsing motes
+        count: low ? 120 : 260,
+        seed: 8181,
+        zNear: -14,
+        zFar: -2,
+        spread: 32,
+        size: [1.1, 2.1],
+        rise: [0.16, 0.42],
+        flicker: 0.55,
+        opacity: 0.5,
+        warmth: 0.7,
+        drift: 0.8,
+      },
+      {
+        // near sparse embers
+        count: low ? 14 : 30,
+        seed: 5150,
+        zNear: -2,
+        zFar: 4,
+        spread: 24,
+        size: [1.1, 2.0],
+        rise: [0.25, 0.6],
+        flicker: 0.75,
+        opacity: 0.42,
+        warmth: 0.9,
+        drift: 1,
+      },
+    ],
+    [low],
+  );
+
+  return (
+    <>
+      {layers.map((cfg) => (
+        <ParticleLayer key={cfg.seed} cfg={cfg} />
+      ))}
+      <Jellies count={low ? 3 : 6} />
+    </>
+  );
+}
+
 
 /* ------------------------------------------------------------------ */
 /* Fish shoal — only visible once the reef is alive                     */
@@ -414,8 +689,8 @@ function Effects({ low }: { low: boolean }) {
   return (
     <EffectComposer enableNormalPass={false}>
       <Bloom
-        intensity={low ? 0.9 : 1.5}
-        luminanceThreshold={0.18}
+        intensity={low ? 0.8 : 1.25}
+        luminanceThreshold={0.3}
         luminanceSmoothing={0.5}
         mipmapBlur
       />
@@ -439,7 +714,7 @@ export default function ReefScene() {
       <LightShafts />
       <CoralField count={low ? 26 : 54} />
       <Seafloor />
-      <Particles count={low ? 500 : 1600} />
+      <ParticleField low={low} />
       <Fish count={low ? 14 : 34} />
       <Effects low={low} />
     </Canvas>

@@ -10,13 +10,34 @@ export type ReefState = {
   target: number;
   /** timestamp (seconds) of the last restore burst, -1 if never */
   burstAt: number;
+  /** smoothed absolute scroll speed, roughly 0 -> 1 */
+  scrollSpeed: number;
 };
 
 export const reefState: ReefState = {
   scroll: 0,
   target: 0,
   burstAt: -1,
+  scrollSpeed: 0,
 };
+
+let lastScroll = 0;
+let lastTime = -1;
+
+/** Update scroll progress and derive a smoothed scroll speed. */
+export function setScroll(v: number) {
+  const now = performance.now() / 1000;
+  if (lastTime > 0) {
+    const dt = Math.max(now - lastTime, 1 / 240);
+    const raw = Math.min(1, (Math.abs(v - lastScroll) / dt) * 1.6);
+    // fast attack, slow release so motion settles when the user pauses
+    const k = raw > reefState.scrollSpeed ? 0.5 : 0.12;
+    reefState.scrollSpeed += (raw - reefState.scrollSpeed) * k;
+  }
+  lastScroll = v;
+  lastTime = now;
+  reefState.scroll = v;
+}
 
 export function triggerRestore() {
   reefState.target = 1;
@@ -27,3 +48,4 @@ export function resetReef() {
   reefState.target = 0;
   reefState.burstAt = -1;
 }
+
