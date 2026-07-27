@@ -184,7 +184,8 @@ const glowVertex = /* glsl */ `
     vColor = aColor;
     vAlpha = clamp(0.35 + 0.65 * pulse * 0.5, 0.0, 1.0);
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = aSize * uScale * pulse * (1.0 + uLife * 0.7) * (300.0 / -mv.z);
+    float dist = max(-mv.z, 3.0);
+    gl_PointSize = clamp(aSize * uScale * pulse * (1.0 + uLife * 0.5) * (160.0 / dist), 1.0, 46.0);
     gl_Position = projectionMatrix * mv;
   }
 `;
@@ -199,7 +200,7 @@ const glowFragment = /* glsl */ `
     if (d > 0.5) discard;
     float core = smoothstep(0.5, 0.0, d);
     float halo = pow(core, 3.0);
-    gl_FragColor = vec4(vColor * (0.6 + halo * 1.8), core * halo * vAlpha * uOpacity);
+    gl_FragColor = vec4(vColor * (0.45 + halo * 0.9), core * halo * vAlpha * uOpacity);
   }
 `;
 
@@ -292,7 +293,7 @@ function ParticleLayer({ cfg }: { cfg: LayerConfig }) {
     if (matRef.current) {
       matRef.current.uniforms.uTime.value = t;
       matRef.current.uniforms.uLife.value = l;
-      matRef.current.uniforms.uOpacity.value = cfg.opacity * (0.28 + l * 0.9);
+      matRef.current.uniforms.uOpacity.value = cfg.opacity * (0.18 + l * 0.72);
       matRef.current.uniforms.uFlicker.value = cfg.flicker * (0.25 + l);
     }
   });
@@ -390,10 +391,10 @@ function Jellies({ count }: { count: number }) {
     if (bell.instanceColor) bell.instanceColor.needsUpdate = true;
     if (trail.instanceColor) trail.instanceColor.needsUpdate = true;
     if (bellMat.current) {
-      bellMat.current.emissiveIntensity = l * 2.2;
-      bellMat.current.opacity = 0.1 + l * 0.5;
+      bellMat.current.emissiveIntensity = l * 0.9;
+      bellMat.current.opacity = 0.05 + l * 0.22;
     }
-    if (trailMat.current) trailMat.current.opacity = l * 0.35;
+    if (trailMat.current) trailMat.current.opacity = l * 0.18;
   });
 
   return (
@@ -442,10 +443,10 @@ function ParticleField({ low }: { low: boolean }) {
         zNear: -34,
         zFar: -14,
         spread: 46,
-        size: [0.6, 1.5],
+        size: [0.5, 1.1],
         rise: [0.05, 0.16],
         flicker: 0.18,
-        opacity: 0.55,
+        opacity: 0.4,
         warmth: 0.35,
         drift: 0.35,
       },
@@ -456,24 +457,24 @@ function ParticleField({ low }: { low: boolean }) {
         zNear: -14,
         zFar: -2,
         spread: 32,
-        size: [1.8, 4.2],
+        size: [1.1, 2.4],
         rise: [0.16, 0.42],
         flicker: 0.55,
-        opacity: 0.9,
+        opacity: 0.5,
         warmth: 0.7,
         drift: 0.8,
       },
       {
         // near sparse embers
-        count: low ? 40 : 90,
+        count: low ? 26 : 55,
         seed: 5150,
         zNear: -2,
         zFar: 4,
         spread: 24,
-        size: [3, 7],
+        size: [1.6, 3.2],
         rise: [0.25, 0.6],
         flicker: 0.75,
-        opacity: 0.75,
+        opacity: 0.42,
         warmth: 0.9,
         drift: 1,
       },
