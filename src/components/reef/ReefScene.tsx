@@ -383,9 +383,9 @@ function Atmosphere() {
     (fog.color as THREE.Color).copy(DEAD_FOG).lerp(LIVE_FOG, l);
     (scene.background as THREE.Color).copy(DEAD_FOG).lerp(LIVE_FOG, l);
 
-    if (amb.current) amb.current.intensity = 1.6 - l * 0.4;
+    if (amb.current) amb.current.intensity = 3.4 - l * 1.2;
     if (key.current) {
-      key.current.intensity = 260 + l * 160 + Math.sin(t * 0.8) * 12;
+      key.current.intensity = 520 + l * 220 + Math.sin(t * 0.8) * 12;
       key.current.color.setHex(l > 0.5 ? 0x00ffa3 : 0xcfe3dc);
     }
     if (rim.current) {
@@ -396,8 +396,8 @@ function Atmosphere() {
 
   return (
     <>
-      <ambientLight ref={amb} intensity={1.6} color="#9fb8b1" />
-      <pointLight ref={key} position={[0, 14, 4]} intensity={260} distance={140} decay={1.1} />
+      <ambientLight ref={amb} intensity={3.4} color="#9fb8b1" />
+      <pointLight ref={key} position={[0, 14, 4]} intensity={520} distance={160} decay={1.1} />
       <pointLight
         ref={rim}
         position={[-8, 1, -14]}
@@ -419,7 +419,7 @@ function Effects({ low }: { low: boolean }) {
         luminanceSmoothing={0.5}
         mipmapBlur
       />
-      <Vignette offset={0.25} darkness={0.85} />
+      <Vignette offset={0.3} darkness={0.6} />
     </EffectComposer>
   );
 }
