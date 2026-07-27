@@ -6,6 +6,7 @@ import { Reveal } from "@/components/site/Reveal";
 import { FactCard, type Fact } from "@/components/site/FactCard";
 import { RestoreNode } from "@/components/site/RestoreNode";
 import { reefState, setScroll, triggerRestore } from "@/components/reef/reefState";
+import { isAudioEnabled, playRestoreCue, setAudioEnabled } from "@/lib/reefAudio";
 
 const TITLE = "The Last Reef — An Interactive Story of Coral Loss and Recovery";
 const DESCRIPTION =
@@ -48,6 +49,7 @@ const FACTS: Fact[] = [
 
 function LastReef() {
   const [restored, setRestored] = useState(false);
+  const [audioOn, setAudioOn] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll();
   const heroOpacity = useTransform(scrollYProgress, [0, 0.12], [1, 0]);
@@ -59,13 +61,25 @@ function LastReef() {
 
   useEffect(() => {
     setScroll(0);
+    setAudioOn(isAudioEnabled());
   }, []);
 
 
-  const restore = () => {
+  const restore = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (restored) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    // normalised device coords of the trigger, so the wave radiates from it
+    triggerRestore({
+      x: ((r.left + r.width / 2) / window.innerWidth) * 2 - 1,
+      y: -(((r.top + r.height / 2) / window.innerHeight) * 2 - 1),
+    });
+    playRestoreCue();
     setRestored(true);
-    triggerRestore();
+  };
+
+  const toggleAudio = () => {
+    setAudioEnabled(!audioOn);
+    setAudioOn(!audioOn);
   };
 
   return (
@@ -195,7 +209,12 @@ function LastReef() {
         </Reveal>
 
         <div className="mt-20">
-          <RestoreNode restored={restored} onRestore={restore} />
+          <RestoreNode
+              restored={restored}
+              onRestore={restore}
+              audioOn={audioOn}
+              onToggleAudio={toggleAudio}
+            />
         </div>
       </section>
 

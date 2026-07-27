@@ -1,19 +1,45 @@
 import { motion, AnimatePresence } from "motion/react";
 
-export function RestoreNode({ restored, onRestore }: { restored: boolean; onRestore: () => void }) {
+export function RestoreNode({
+  restored,
+  onRestore,
+  audioOn,
+  onToggleAudio,
+}: {
+  restored: boolean;
+  onRestore: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  audioOn: boolean;
+  onToggleAudio: () => void;
+}) {
   return (
     <div className="relative flex flex-col items-center">
+      {/* screen-wide bloom flash */}
       <AnimatePresence>
         {restored && (
           <motion.span
-            key="burst"
-            initial={{ scale: 0.2, opacity: 0.9 }}
-            animate={{ scale: 6, opacity: 0 }}
-            transition={{ duration: 2.4, ease: [0.16, 1, 0.3, 1] }}
-            className="pointer-events-none absolute h-40 w-40 rounded-full blur-2xl"
-            style={{ backgroundImage: "var(--gradient-living)" }}
+            key="flash"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0, 0.34, 0] }}
+            transition={{ duration: 1.2, times: [0, 0.12, 1], ease: [0.16, 1, 0.3, 1] }}
+            className="pointer-events-none fixed inset-0 z-40"
+            style={{ backgroundImage: "var(--gradient-haze)", mixBlendMode: "screen" }}
           />
         )}
+      </AnimatePresence>
+
+      {/* radiating light rings from the trigger point */}
+      <AnimatePresence>
+        {restored &&
+          [0, 0.18, 0.42].map((delay, i) => (
+            <motion.span
+              key={`ring-${i}`}
+              initial={{ scale: 0.15, opacity: 0.85 }}
+              animate={{ scale: 14, opacity: 0 }}
+              transition={{ duration: 3.4, delay, ease: [0.12, 0.9, 0.24, 1] }}
+              className="pointer-events-none absolute h-40 w-40 rounded-full blur-2xl"
+              style={{ backgroundImage: "var(--gradient-living)" }}
+            />
+          ))}
       </AnimatePresence>
 
       <motion.button
@@ -37,7 +63,16 @@ export function RestoreNode({ restored, onRestore }: { restored: boolean; onRest
         </span>
       </motion.button>
 
-      <p className="mt-8 max-w-sm text-center text-sm leading-relaxed text-muted-foreground">
+      <button
+        type="button"
+        onClick={onToggleAudio}
+        aria-pressed={audioOn}
+        className="mt-6 cursor-pointer rounded-full border border-border px-4 py-1.5 text-[0.65rem] uppercase tracking-[0.25em] text-muted-foreground transition-colors hover:text-foreground"
+      >
+        {audioOn ? "Sound on" : "Sound off"}
+      </button>
+
+      <p className="mt-6 max-w-sm text-center text-sm leading-relaxed text-muted-foreground">
         {restored
           ? "Light returns. Coral regains its symbionts, colour floods back, and the reef starts breathing again."
           : "Nothing here moves on its own. The reef only changes if you choose to change it."}
