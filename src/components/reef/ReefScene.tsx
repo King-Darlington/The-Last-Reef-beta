@@ -200,7 +200,7 @@ const glowFragment = /* glsl */ `
     if (d > 0.5) discard;
     float core = smoothstep(0.5, 0.0, d);
     float halo = pow(core, 3.0);
-    gl_FragColor = vec4(vColor * (0.3 + halo * 0.6), core * halo * vAlpha * uOpacity * 0.55);
+    gl_FragColor = vec4(vColor * (0.3 + halo * 0.6), core * halo * vAlpha * uOpacity * 0.22);
   }
 `;
 
@@ -689,8 +689,8 @@ function Effects({ low }: { low: boolean }) {
   return (
     <EffectComposer enableNormalPass={false}>
       <Bloom
-        intensity={low ? 0.9 : 1.5}
-        luminanceThreshold={0.18}
+        intensity={low ? 0.7 : 1.1}
+        luminanceThreshold={0.42}
         luminanceSmoothing={0.5}
         mipmapBlur
       />
