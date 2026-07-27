@@ -6,7 +6,7 @@ import { Reveal } from "@/components/site/Reveal";
 import { FactCard, type Fact } from "@/components/site/FactCard";
 import { RestoreNode } from "@/components/site/RestoreNode";
 import { SoundToggle } from "@/components/site/SoundToggle";
-import { reefLife, setScroll, triggerRestore } from "@/components/reef/reefState";
+import { reefLife, revertReef, setScroll, triggerRestore } from "@/components/reef/reefState";
 import {
   hasAudioChoice,
   isAudioEnabled,
@@ -86,16 +86,27 @@ function LastReef() {
     return () => window.clearInterval(id);
   }, []);
 
-  const restore = (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (restored) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    // normalised device coords of the trigger, so the wave radiates from it
-    triggerRestore({
+  // normalised device coords of the trigger, so the wave radiates from it
+  const originOf = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    return {
       x: ((r.left + r.width / 2) / window.innerWidth) * 2 - 1,
       y: -(((r.top + r.height / 2) / window.innerHeight) * 2 - 1),
-    });
+    };
+  };
+
+  const restore = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (restored) return;
+    triggerRestore(originOf(e.currentTarget));
     playRestoreCue();
     setRestored(true);
+  };
+
+  // the same wave, run in reverse, so the story can be replayed at will
+  const revert = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!restored) return;
+    revertReef(originOf(e.currentTarget));
+    setRestored(false);
   };
 
   const toggleAudio = () => {
@@ -234,7 +245,7 @@ function LastReef() {
         </Reveal>
 
         <div className="mt-16 sm:mt-20">
-          <RestoreNode restored={restored} onRestore={restore} />
+          <RestoreNode restored={restored} onRestore={restore} onRevert={revert} />
         </div>
 
       </section>

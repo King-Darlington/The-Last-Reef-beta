@@ -8,6 +8,10 @@ export type ReefState = {
   scroll: number;
   /** 0 = bleached, 1 = fully restored (target value) */
   target: number;
+  /** life value the current wave started from (enables reverse transitions) */
+  from: number;
+  /** 1 = coming alive, -1 = fading back to bleached */
+  direction: 1 | -1;
   /** timestamp (seconds) of the last restore burst, -1 if never */
   burstAt: number;
   /** smoothed absolute scroll speed, roughly 0 -> 1 */
@@ -28,6 +32,8 @@ const FEATHER = 16;
 export const reefState: ReefState = {
   scroll: 0,
   target: 0,
+  from: 0,
+  direction: 1,
   burstAt: -1,
   scrollSpeed: 0,
   origin: { x: 0, y: -0.5, z: -4 },
@@ -68,10 +74,14 @@ export function restoreTime() {
   return clamp01((now() - reefState.restoreAt) / RESTORE_DURATION);
 }
 
+/** Blend the wave coverage between where the reef was and where it's going. */
+const mix = (cov: number) =>
+  reefState.from + (reefState.target - reefState.from) * cov;
+
 /** Eased global life value — use for anything that doesn't have a position. */
 export function reefLife() {
   if (reefState.restoreAt < 0) return reefState.target;
-  return easeOut(restoreTime());
+  return mix(easeOut(restoreTime()));
 }
 
 /** Distance the leading edge of the wave has travelled. */
@@ -87,7 +97,7 @@ export function lifeAt(x: number, y: number, z: number) {
   const dy = (y - o.y) * 0.7;
   const dz = z - o.z;
   const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-  return smooth(clamp01((frontRadius() - d) / FEATHER));
+  return mix(smooth(clamp01((frontRadius() - d) / FEATHER)));
 }
 
 /** 0 -> 1 brightness of the radiating light band as it sweeps past a position. */
@@ -102,7 +112,8 @@ export function waveEdge(x: number, y: number, z: number) {
   const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
   const band = (d - (frontRadius() - FEATHER * 0.55)) / (FEATHER * 0.55);
   const g = Math.exp(-band * band * 2.4);
-  return g * (1 - p * p);
+  // the fading wave carries a dimmer, cooler edge than the restoring one
+  return g * (1 - p * p) * (reefState.direction > 0 ? 1 : 0.45);
 }
 
 /** Short, bright screen-wide bloom flash right after the click. */
@@ -111,7 +122,8 @@ export function restoreFlash() {
   const t = now() - reefState.restoreAt;
   if (t < 0 || t > 1.2) return 0;
   const x = t / 1.2;
-  return Math.pow(1 - x, 2.2) * Math.min(1, x * 12);
+  const amp = reefState.direction > 0 ? 1 : 0.35;
+  return Math.pow(1 - x, 2.2) * Math.min(1, x * 12) * amp;
 }
 
 /**
@@ -119,17 +131,31 @@ export function restoreFlash() {
  * `origin` is normalised device coords of the click (-1..1), mapped into a
  * rough world position so the ripple starts where the user actually pressed.
  */
-export function triggerRestore(origin?: { x: number; y: number }) {
+function startWave(to: 0 | 1, origin?: { x: number; y: number }) {
   if (origin) {
     reefState.origin = { x: origin.x * 12, y: origin.y * 5 - 0.5, z: -4 };
   }
-  reefState.target = 1;
+  reefState.from = reefLife();
+  reefState.target = to;
+  reefState.direction = to === 1 ? 1 : -1;
   reefState.restoreAt = now();
   reefState.burstAt = reefState.restoreAt;
 }
 
+export function triggerRestore(origin?: { x: number; y: number }) {
+  startWave(1, origin);
+}
+
+/** Ripple the reef back to its bleached state so the story can be replayed. */
+export function revertReef(origin?: { x: number; y: number }) {
+  startWave(0, origin);
+}
+
+/** Instantly snap back to bleached with no animation. */
 export function resetReef() {
   reefState.target = 0;
+  reefState.from = 0;
+  reefState.direction = 1;
   reefState.burstAt = -1;
   reefState.restoreAt = -1;
 }
