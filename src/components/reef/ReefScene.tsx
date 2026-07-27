@@ -713,7 +713,7 @@ export default function ReefScene() {
       <LightShafts />
       <CoralField count={low ? 26 : 54} />
       <Seafloor />
-      <Particles count={low ? 500 : 1600} />
+      <ParticleField low={low} />
       <Fish count={low ? 14 : 34} />
       <Effects low={low} />
     </Canvas>
