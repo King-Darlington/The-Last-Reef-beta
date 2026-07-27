@@ -5,8 +5,16 @@ import { ReefCanvas } from "@/components/reef/ReefCanvas";
 import { Reveal } from "@/components/site/Reveal";
 import { FactCard, type Fact } from "@/components/site/FactCard";
 import { RestoreNode } from "@/components/site/RestoreNode";
-import { reefState, setScroll, triggerRestore } from "@/components/reef/reefState";
-import { isAudioEnabled, playRestoreCue, setAudioEnabled } from "@/lib/reefAudio";
+import { SoundToggle } from "@/components/site/SoundToggle";
+import { reefLife, setScroll, triggerRestore } from "@/components/reef/reefState";
+import {
+  hasAudioChoice,
+  isAudioEnabled,
+  playRestoreCue,
+  setAmbienceLife,
+  setAudioEnabled,
+  startAmbience,
+} from "@/lib/reefAudio";
 
 const TITLE = "The Last Reef — An Interactive Story of Coral Loss and Recovery";
 const DESCRIPTION =
@@ -49,7 +57,8 @@ const FACTS: Fact[] = [
 
 function LastReef() {
   const [restored, setRestored] = useState(false);
-  const [audioOn, setAudioOn] = useState(true);
+  const [audioOn, setAudioOn] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll();
   const heroOpacity = useTransform(scrollYProgress, [0, 0.12], [1, 0]);
@@ -61,10 +70,23 @@ function LastReef() {
 
   useEffect(() => {
     setScroll(0);
-    setAudioOn(isAudioEnabled());
+    const on = isAudioEnabled();
+    setAudioOn(on);
+    if (on) startAmbience();
+    // gentle invitation to unmute, only until they've made a choice
+    if (!hasAudioChoice()) {
+      const t = window.setTimeout(() => setShowPrompt(true), 3500);
+      return () => window.clearTimeout(t);
+    }
   }, []);
 
-  const restore = (e: React.MouseEvent<HTMLButtonElement>) => {
+  // keep the ambience timbre in step with the reef's transformation
+  useEffect(() => {
+    const id = window.setInterval(() => setAmbienceLife(reefLife()), 150);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const restore = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (restored) return;
     const r = e.currentTarget.getBoundingClientRect();
     // normalised device coords of the trigger, so the wave radiates from it
@@ -77,13 +99,17 @@ function LastReef() {
   };
 
   const toggleAudio = () => {
-    setAudioEnabled(!audioOn);
-    setAudioOn(!audioOn);
+    const next = !audioOn;
+    setAudioEnabled(next);
+    setAudioOn(next);
+    setShowPrompt(false);
   };
 
   return (
     <div ref={containerRef} className="relative">
       <ReefCanvas />
+      <SoundToggle on={audioOn} onToggle={toggleAudio} showPrompt={showPrompt} />
+
 
       {/* ---------------------------------------------------------- HERO */}
       <section className="relative flex min-h-screen flex-col items-center justify-center px-6 text-center">
@@ -207,14 +233,10 @@ function LastReef() {
           nursery-grown fragments onto damaged reefs — and some of them are spawning again.
         </Reveal>
 
-        <div className="mt-20">
-          <RestoreNode
-            restored={restored}
-            onRestore={restore}
-            audioOn={audioOn}
-            onToggleAudio={toggleAudio}
-          />
+        <div className="mt-16 sm:mt-20">
+          <RestoreNode restored={restored} onRestore={restore} />
         </div>
+
       </section>
 
       {/* ------------------------------------------------ BEAT 3 */}

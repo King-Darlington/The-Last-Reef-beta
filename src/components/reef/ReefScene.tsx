@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import * as THREE from "three";
@@ -645,9 +645,55 @@ function LightShafts() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Scroll-linked documentary camera path                                */
+/* ------------------------------------------------------------------ */
+type CamKey = {
+  /** scroll progress 0 -> 1 */
+  at: number;
+  pos: [number, number, number];
+  look: [number, number, number];
+};
+
+/**
+ * A slow tracking shot through the reef, keyed to the narrative beats:
+ * hero → drifting in → close on coral detail during the facts → pulling
+ * back wide for the transformation → settling calm and centred.
+ */
+const CAM_PATH: CamKey[] = [
+  { at: 0.0, pos: [0, 1.9, 12.5], look: [0, -1.3, -14] },
+  { at: 0.18, pos: [-2.4, 0.9, 8.6], look: [-1.4, -1.7, -13] },
+  { at: 0.36, pos: [1.8, -0.6, 4.4], look: [1.0, -2.2, -9] }, // coral detail
+  { at: 0.48, pos: [3.0, -1.3, 2.4], look: [1.6, -2.5, -8] }, // closest pass
+  { at: 0.64, pos: [0, 3.4, 15.5], look: [0, -1.5, -16] }, // wide establishing
+  { at: 0.82, pos: [0, 1.1, 8.6], look: [0, -1.1, -13] }, // calm, centred
+  { at: 1.0, pos: [0, 1.4, 9.6], look: [0, -0.9, -13] },
+];
+
+const smoothstep = (v: number) => v * v * (3 - 2 * v);
+
+function samplePath(p: number, outPos: THREE.Vector3, outLook: THREE.Vector3) {
+  const t = p < 0 ? 0 : p > 1 ? 1 : p;
+  let i = 0;
+  while (i < CAM_PATH.length - 2 && t > CAM_PATH[i + 1].at) i++;
+  const a = CAM_PATH[i];
+  const b = CAM_PATH[i + 1];
+  const k = smoothstep((t - a.at) / Math.max(b.at - a.at, 1e-4));
+  outPos.set(
+    a.pos[0] + (b.pos[0] - a.pos[0]) * k,
+    a.pos[1] + (b.pos[1] - a.pos[1]) * k,
+    a.pos[2] + (b.pos[2] - a.pos[2]) * k,
+  );
+  outLook.set(
+    a.look[0] + (b.look[0] - a.look[0]) * k,
+    a.look[1] + (b.look[1] - a.look[1]) * k,
+    a.look[2] + (b.look[2] - a.look[2]) * k,
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Camera drift + fog + light rig, all driven by scroll & life          */
 /* ------------------------------------------------------------------ */
-function Atmosphere() {
+function Atmosphere({ low }: { low: boolean }) {
   const { scene, camera } = useThree();
   const key = useRef<THREE.PointLight>(null);
   const rim = useRef<THREE.PointLight>(null);
@@ -655,23 +701,55 @@ function Atmosphere() {
   const life = useRef(0);
   const fog = useMemo(() => new THREE.FogExp2(DEAD_FOG.getHex(), 0.085), []);
 
+  // physics-ish smoothing state: the rig chases the path target instead of
+  // snapping to it, so touch-scroll jitter never reads as robotic motion
+  const targetPos = useMemo(() => new THREE.Vector3(0, 1.9, 12.5), []);
+  const targetLook = useMemo(() => new THREE.Vector3(0, -1.3, -14), []);
+  const curPos = useMemo(() => new THREE.Vector3(0, 1.9, 12.5), []);
+  const curLook = useMemo(() => new THREE.Vector3(0, -1.3, -14), []);
+  const vel = useMemo(() => new THREE.Vector3(), []);
+  const lookVel = useMemo(() => new THREE.Vector3(), []);
+  const scratch = useMemo(() => new THREE.Vector3(), []);
+
   useMemo(() => {
     scene.fog = fog;
     scene.background = DEAD_FOG.clone();
   }, [scene, fog]);
 
-  useFrame((state, d) => {
+  useFrame((state, delta) => {
     life.current = reefLife();
     const l = life.current;
     const flash = restoreFlash();
     const t = state.clock.elapsedTime;
     const p = reefState.scroll;
+    const d = Math.min(delta, 1 / 30);
 
-    // slow, continuous idle drift + scroll-driven dolly
-    camera.position.x = Math.sin(t * 0.11) * 1.6 + p * 1.4;
-    camera.position.y = 1.6 + Math.sin(t * 0.17) * 0.4 - p * 1.4;
-    camera.position.z = 11 - p * 5.5;
-    camera.lookAt(Math.sin(t * 0.07) * 0.8, -1.4 + p * 0.5, -14);
+    samplePath(p, targetPos, targetLook);
+
+    // slow idle drift layered on top of the scripted path
+    targetPos.x += Math.sin(t * 0.11) * 1.15;
+    targetPos.y += Math.sin(t * 0.17) * 0.32;
+    targetLook.x += Math.sin(t * 0.07) * 0.7;
+
+    // critically damped spring — smooth deceleration, no overshoot wobble
+    const spring = (
+      cur: THREE.Vector3,
+      target: THREE.Vector3,
+      v: THREE.Vector3,
+      omega: number,
+    ) => {
+      const k = omega * omega;
+      const c = 2 * omega;
+      scratch.copy(target).sub(cur).multiplyScalar(k * d);
+      v.addScaledVector(scratch, 1).addScaledVector(v, -Math.min(c * d, 1));
+      cur.addScaledVector(v, d);
+    };
+
+    spring(curPos, targetPos, vel, low ? 2.6 : 2.2);
+    spring(curLook, targetLook, lookVel, low ? 3.0 : 2.6);
+
+    camera.position.copy(curPos);
+    camera.lookAt(curLook);
 
     fog.density = 0.03 - l * 0.014 - p * 0.002;
     (fog.color as THREE.Color).copy(DEAD_FOG).lerp(LIVE_FOG, l);
@@ -706,36 +784,43 @@ function Atmosphere() {
 
 function Effects({ low }: { low: boolean }) {
   return (
-    <EffectComposer enableNormalPass={false}>
+    <EffectComposer enableNormalPass={false} multisampling={low ? 0 : 4}>
       <Bloom
-        intensity={low ? 0.8 : 1.25}
-        luminanceThreshold={0.3}
+        intensity={low ? 0.55 : 1.25}
+        luminanceThreshold={low ? 0.42 : 0.3}
         luminanceSmoothing={0.5}
         mipmapBlur
       />
-      <Vignette offset={0.3} darkness={0.6} />
+      <Vignette offset={0.3} darkness={low ? 0.5 : 0.6} />
     </EffectComposer>
   );
 }
 
+function detectLow() {
+  if (typeof window === "undefined") return true;
+  const small = window.innerWidth < 820;
+  const weak = (navigator.hardwareConcurrency ?? 8) <= 4;
+  const coarse = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+  return small || weak || coarse;
+}
+
 export default function ReefScene() {
-  const low =
-    typeof window !== "undefined" &&
-    (window.innerWidth < 820 || (navigator.hardwareConcurrency ?? 8) <= 4);
+  const [low] = useState(detectLow);
 
   return (
     <Canvas
-      dpr={low ? [1, 1.4] : [1, 1.8]}
-      camera={{ position: [0, 1.6, 11], fov: 52, near: 0.1, far: 90 }}
-      gl={{ antialias: !low, powerPreference: "high-performance" }}
+      dpr={low ? [1, 1.25] : [1, 1.8]}
+      camera={{ position: [0, 1.9, 12.5], fov: low ? 60 : 52, near: 0.1, far: 90 }}
+      gl={{ antialias: false, powerPreference: "high-performance" }}
     >
-      <Atmosphere />
+      <Atmosphere low={low} />
       <LightShafts />
-      <CoralField count={low ? 26 : 54} />
+      <CoralField count={low ? 20 : 54} />
       <Seafloor />
       <ParticleField low={low} />
-      <Fish count={low ? 14 : 34} />
+      <Fish count={low ? 10 : 34} />
       <Effects low={low} />
     </Canvas>
   );
 }
+
