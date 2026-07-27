@@ -54,12 +54,13 @@ function LastReef() {
   const heroY = useTransform(scrollYProgress, [0, 0.12], [0, -60]);
 
   useMotionValueEvent(scrollYProgress, "change", (v) => {
-    reefState.scroll = v;
+    setScroll(v);
   });
 
   useEffect(() => {
-    reefState.scroll = 0;
+    setScroll(0);
   }, []);
+
 
   const restore = () => {
     if (restored) return;
