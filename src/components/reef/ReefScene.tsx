@@ -164,8 +164,8 @@ function Seafloor() {
 /* ------------------------------------------------------------------ */
 /* Bioluminescent particle layers                                       */
 /* ------------------------------------------------------------------ */
-const CYAN = new THREE.Color("#7ff5ea");
-const CORAL_WARM = new THREE.Color("#ffb08a");
+const CYAN = new THREE.Color("#1fb9ad");
+const CORAL_WARM = new THREE.Color("#c2604a");
 const DULL = new THREE.Color("#8fa6a0");
 
 const glowVertex = /* glsl */ `
@@ -200,7 +200,7 @@ const glowFragment = /* glsl */ `
     if (d > 0.5) discard;
     float core = smoothstep(0.5, 0.0, d);
     float halo = pow(core, 3.0);
-    gl_FragColor = vec4(vColor * (0.45 + halo * 0.9), core * halo * vAlpha * uOpacity);
+    gl_FragColor = vec4(vColor * (0.3 + halo * 0.6), core * halo * vAlpha * uOpacity);
   }
 `;
 
@@ -293,7 +293,7 @@ function ParticleLayer({ cfg }: { cfg: LayerConfig }) {
     if (matRef.current) {
       matRef.current.uniforms.uTime.value = t;
       matRef.current.uniforms.uLife.value = l;
-      matRef.current.uniforms.uOpacity.value = cfg.opacity * (0.18 + l * 0.72);
+      matRef.current.uniforms.uOpacity.value = cfg.opacity * (0.12 + l * 0.4);
       matRef.current.uniforms.uFlicker.value = cfg.flicker * (0.25 + l);
     }
   });
@@ -391,10 +391,10 @@ function Jellies({ count }: { count: number }) {
     if (bell.instanceColor) bell.instanceColor.needsUpdate = true;
     if (trail.instanceColor) trail.instanceColor.needsUpdate = true;
     if (bellMat.current) {
-      bellMat.current.emissiveIntensity = l * 0.9;
-      bellMat.current.opacity = 0.05 + l * 0.22;
+      bellMat.current.emissiveIntensity = l * 0.35;
+      bellMat.current.opacity = 0.03 + l * 0.12;
     }
-    if (trailMat.current) trailMat.current.opacity = l * 0.18;
+    if (trailMat.current) trailMat.current.opacity = l * 0.1;
   });
 
   return (
@@ -404,7 +404,7 @@ function Jellies({ count }: { count: number }) {
         <meshStandardMaterial
           ref={bellMat}
           vertexColors
-          emissive="#7ff5ea"
+          emissive="#2fd8c8"
           emissiveIntensity={0}
           transparent
           opacity={0.1}
@@ -452,7 +452,7 @@ function ParticleField({ low }: { low: boolean }) {
       },
       {
         // mid-ground pulsing motes
-        count: low ? 160 : 380,
+        count: low ? 120 : 260,
         seed: 8181,
         zNear: -14,
         zFar: -2,
@@ -466,12 +466,12 @@ function ParticleField({ low }: { low: boolean }) {
       },
       {
         // near sparse embers
-        count: low ? 26 : 55,
+        count: low ? 14 : 30,
         seed: 5150,
         zNear: -2,
         zFar: 4,
         spread: 24,
-        size: [1.6, 3.2],
+        size: [1.4, 2.6],
         rise: [0.25, 0.6],
         flicker: 0.75,
         opacity: 0.42,
