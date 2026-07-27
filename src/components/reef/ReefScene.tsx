@@ -538,7 +538,7 @@ function Anemones({ count }: { count: number }) {
         x,
         z,
         y: -3.35 - Math.abs(x) * 0.04,
-        scale: 0.4 + rand() * 0.55,
+        scale: 0.6 + rand() * 0.7,
         phase: rand() * Math.PI * 2,
         color: ANEMONE_LIVE[Math.floor(rand() * ANEMONE_LIVE.length)],
       };
@@ -733,16 +733,16 @@ function SeaTurtle() {
     const g = group.current;
     if (!g) return;
     const t = state.clock.elapsedTime;
-    const a = t * 0.055;
-    const r = 13;
+    const a = t * 0.05;
+    const r = 16;
     const x = Math.cos(a) * r;
-    const z = -11 + Math.sin(a) * r * 0.6;
-    const y = -0.6 + Math.sin(t * 0.22) * 0.8;
+    const z = -13 + Math.sin(a) * r * 0.6;
+    const y = 1.4 + Math.sin(t * 0.22) * 0.9;
     g.position.set(x, y, z);
     g.rotation.y = -a + Math.PI / 2;
     g.rotation.z = Math.sin(t * 0.3) * 0.09;
     const l = lifeAt(x, y, z);
-    g.scale.setScalar(0.9 * l);
+    g.scale.setScalar(0.62 * l);
     g.visible = l > 0.02;
     const flap = Math.sin(t * 1.5) * 0.5;
     if (flipL.current) flipL.current.rotation.z = 0.35 + flap;
@@ -754,30 +754,30 @@ function SeaTurtle() {
       {/* shell */}
       <mesh scale={[1.15, 0.42, 1.5]}>
         <sphereGeometry args={[1, 18, 14]} />
-        <meshStandardMaterial color="#3d5f4a" roughness={0.75} emissive="#0d3a2e" emissiveIntensity={0.25} />
+        <meshStandardMaterial color="#2c4536" roughness={0.9} />
       </mesh>
       {/* head */}
       <mesh position={[0, 0.08, 1.65]} scale={[0.33, 0.3, 0.42]}>
         <sphereGeometry args={[1, 12, 10]} />
-        <meshStandardMaterial color="#4f6f57" roughness={0.7} />
+        <meshStandardMaterial color="#33513f" roughness={0.85} />
       </mesh>
       {/* front flippers */}
       <mesh ref={flipL} position={[1.0, 0, 0.5]} scale={[1.15, 0.09, 0.4]}>
         <sphereGeometry args={[1, 10, 8]} />
-        <meshStandardMaterial color="#456552" roughness={0.7} />
+        <meshStandardMaterial color="#2f4a3a" roughness={0.85} />
       </mesh>
       <mesh ref={flipR} position={[-1.0, 0, 0.5]} scale={[1.15, 0.09, 0.4]}>
         <sphereGeometry args={[1, 10, 8]} />
-        <meshStandardMaterial color="#456552" roughness={0.7} />
+        <meshStandardMaterial color="#2f4a3a" roughness={0.85} />
       </mesh>
       {/* rear flippers */}
       <mesh position={[0.75, 0, -1.05]} scale={[0.55, 0.08, 0.3]}>
         <sphereGeometry args={[1, 8, 6]} />
-        <meshStandardMaterial color="#456552" roughness={0.7} />
+        <meshStandardMaterial color="#2f4a3a" roughness={0.85} />
       </mesh>
       <mesh position={[-0.75, 0, -1.05]} scale={[0.55, 0.08, 0.3]}>
         <sphereGeometry args={[1, 8, 6]} />
-        <meshStandardMaterial color="#456552" roughness={0.7} />
+        <meshStandardMaterial color="#2f4a3a" roughness={0.85} />
       </mesh>
     </group>
   );
