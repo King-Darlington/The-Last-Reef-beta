@@ -510,7 +510,6 @@ function ParticleField({ low }: { low: boolean }) {
   );
 }
 
-
 /* ------------------------------------------------------------------ */
 /* Fish shoal — only visible once the reef is alive                     */
 /* ------------------------------------------------------------------ */
@@ -685,11 +684,7 @@ function Atmosphere() {
     }
     if (rim.current) {
       rim.current.intensity = 60 + l * 120 + flash * 260;
-      rim.current.position.set(
-        reefState.origin.x,
-        reefState.origin.y,
-        reefState.origin.z,
-      );
+      rim.current.position.set(reefState.origin.x, reefState.origin.y, reefState.origin.z);
     }
   });
 

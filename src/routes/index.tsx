@@ -64,7 +64,6 @@ function LastReef() {
     setAudioOn(isAudioEnabled());
   }, []);
 
-
   const restore = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (restored) return;
     const r = e.currentTarget.getBoundingClientRect();
@@ -210,11 +209,11 @@ function LastReef() {
 
         <div className="mt-20">
           <RestoreNode
-              restored={restored}
-              onRestore={restore}
-              audioOn={audioOn}
-              onToggleAudio={toggleAudio}
-            />
+            restored={restored}
+            onRestore={restore}
+            audioOn={audioOn}
+            onToggleAudio={toggleAudio}
+          />
         </div>
       </section>
 
