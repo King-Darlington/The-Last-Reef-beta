@@ -511,6 +511,351 @@ function ParticleField({ low }: { low: boolean }) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Reef inhabitants — anemones, urchins, kelp, rays and a sea turtle    */
+/* ------------------------------------------------------------------ */
+const ANEMONE_TENTACLES = 12;
+const ANEMONE_LIVE = [
+  new THREE.Color("#ff7a5c"),
+  new THREE.Color("#ffb85c"),
+  new THREE.Color("#8affe0"),
+  new THREE.Color("#c47dff"),
+];
+const ANEMONE_DEAD = new THREE.Color("#b9b7ad");
+
+/** Sea anemones: pale and shrunken when bleached, plump and glowing when alive. */
+function Anemones({ count }: { count: number }) {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const matRef = useRef<THREE.MeshStandardMaterial>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const scratch = useMemo(() => new THREE.Color(), []);
+
+  const anemones = useMemo(() => {
+    const rand = rng(2468);
+    return Array.from({ length: count }, () => {
+      const x = (rand() - 0.5) * 30;
+      const z = -2 - rand() * 20;
+      return {
+        x,
+        z,
+        y: -3.35 - Math.abs(x) * 0.04,
+        scale: 0.4 + rand() * 0.55,
+        phase: rand() * Math.PI * 2,
+        color: ANEMONE_LIVE[Math.floor(rand() * ANEMONE_LIVE.length)],
+      };
+    });
+  }, [count]);
+
+  useFrame((state) => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    const t = state.clock.elapsedTime;
+
+    for (let i = 0; i < anemones.length; i++) {
+      const a = anemones[i];
+      const l = lifeAt(a.x, a.y, a.z);
+      const edge = waveEdge(a.x, a.y, a.z);
+      for (let s = 0; s < ANEMONE_TENTACLES; s++) {
+        const idx = i * ANEMONE_TENTACLES + s;
+        const ang = (s / ANEMONE_TENTACLES) * Math.PI * 2 + a.phase;
+        // tentacles unfurl outward and sway with the current as life returns
+        const reach = (0.25 + l * 0.55) * a.scale;
+        const sway = Math.sin(t * 1.1 + a.phase + s * 0.5) * 0.12 * (0.3 + l);
+        const len = (0.22 + l * 0.5) * a.scale;
+        dummy.position.set(
+          a.x + Math.cos(ang) * reach + sway,
+          a.y + len * 0.9 + l * 0.14,
+          a.z + Math.sin(ang) * reach + sway * 0.5,
+        );
+        dummy.rotation.set(Math.cos(ang) * (0.5 - l * 0.2) + sway, 0, Math.sin(ang) * -0.45);
+        const thick = (0.05 + l * 0.035) * a.scale;
+        dummy.scale.set(thick, len, thick);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(idx, dummy.matrix);
+        scratch.copy(ANEMONE_DEAD).lerp(a.color, l);
+        if (edge > 0.001) scratch.lerp(WAVE_LIGHT, edge * 0.7).multiplyScalar(1 + edge * 1.3);
+        mesh.setColorAt(idx, scratch);
+      }
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    if (matRef.current) matRef.current.emissiveIntensity = reefLife() * 0.5;
+  });
+
+  return (
+    <instancedMesh
+      ref={ref}
+      args={[undefined, undefined, count * ANEMONE_TENTACLES]}
+      frustumCulled={false}
+    >
+      <capsuleGeometry args={[1, 1, 2, 6]} />
+      <meshStandardMaterial
+        ref={matRef}
+        vertexColors
+        roughness={0.55}
+        emissive="#2c6f63"
+        emissiveIntensity={0}
+      />
+    </instancedMesh>
+  );
+}
+
+const URCHIN_SPIKES = 14;
+
+/** Sea urchins — survivors. They're here in both states, just duller when bleached. */
+function Urchins({ count }: { count: number }) {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const scratch = useMemo(() => new THREE.Color(), []);
+  const dead = useMemo(() => new THREE.Color("#4a4a52"), []);
+  const live = useMemo(() => new THREE.Color("#2a1440"), []);
+
+  const urchins = useMemo(() => {
+    const rand = rng(1357);
+    return Array.from({ length: count }, () => {
+      const x = (rand() - 0.5) * 32;
+      const z = -2 - rand() * 22;
+      const dirs = Array.from({ length: URCHIN_SPIKES }, () =>
+        new THREE.Vector3(rand() - 0.5, rand() * 0.9 + 0.1, rand() - 0.5).normalize(),
+      );
+      return { x, z, y: -3.3 - Math.abs(x) * 0.04, scale: 0.22 + rand() * 0.22, dirs };
+    });
+  }, [count]);
+
+  useFrame((state) => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    const t = state.clock.elapsedTime;
+    for (let i = 0; i < urchins.length; i++) {
+      const u = urchins[i];
+      const l = lifeAt(u.x, u.y, u.z);
+      for (let s = 0; s < URCHIN_SPIKES; s++) {
+        const d = u.dirs[s];
+        const len = u.scale * (1.5 + Math.sin(t * 0.7 + s) * 0.05);
+        dummy.position.set(
+          u.x + d.x * len * 0.5,
+          u.y + d.y * len * 0.5,
+          u.z + d.z * len * 0.5,
+        );
+        dummy.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
+        dummy.scale.set(u.scale * 0.09, len, u.scale * 0.09);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i * URCHIN_SPIKES + s, dummy.matrix);
+        scratch.copy(dead).lerp(live, l);
+        mesh.setColorAt(i * URCHIN_SPIKES + s, scratch);
+      }
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh
+      ref={ref}
+      args={[undefined, undefined, count * URCHIN_SPIKES]}
+      frustumCulled={false}
+    >
+      <coneGeometry args={[0.5, 1, 4]} />
+      <meshStandardMaterial vertexColors roughness={0.7} />
+    </instancedMesh>
+  );
+}
+
+const KELP_SEGS = 7;
+
+/** Seagrass / kelp blades that sway with the current. */
+function Kelp({ count }: { count: number }) {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const scratch = useMemo(() => new THREE.Color(), []);
+  const dead = useMemo(() => new THREE.Color("#6a6b5c"), []);
+  const live = useMemo(() => new THREE.Color("#1f8f5f"), []);
+
+  const stalks = useMemo(() => {
+    const rand = rng(8642);
+    return Array.from({ length: count }, () => {
+      const x = (rand() - 0.5) * 34;
+      const z = -4 - rand() * 22;
+      return {
+        x,
+        z,
+        y: -3.5 - Math.abs(x) * 0.04,
+        h: 0.5 + rand() * 0.7,
+        phase: rand() * Math.PI * 2,
+        lean: (rand() - 0.5) * 0.5,
+      };
+    });
+  }, [count]);
+
+  useFrame((state) => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    const t = state.clock.elapsedTime;
+    const boost = 1 + reefState.scrollSpeed * 1.2;
+    for (let i = 0; i < stalks.length; i++) {
+      const k = stalks[i];
+      const l = lifeAt(k.x, k.y + 1, k.z);
+      for (let s = 0; s < KELP_SEGS; s++) {
+        const f = s / KELP_SEGS;
+        const bend = Math.sin(t * 0.9 * boost + k.phase + f * 2.2) * 0.35 * (f + 0.2);
+        dummy.position.set(
+          k.x + bend + k.lean * f * 2,
+          k.y + f * k.h * KELP_SEGS * 0.32 + k.h * 0.16,
+          k.z + bend * 0.4,
+        );
+        dummy.rotation.set(bend * 0.3, k.phase, bend * 0.6);
+        const w = (0.11 - f * 0.05) * (0.5 + l * 0.6);
+        dummy.scale.set(w, k.h * 0.34, 0.02);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i * KELP_SEGS + s, dummy.matrix);
+        scratch.copy(dead).lerp(live, l);
+        mesh.setColorAt(i * KELP_SEGS + s, scratch);
+      }
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, count * KELP_SEGS]} frustumCulled={false}>
+      <boxGeometry args={[1, 1, 1]} />
+      <meshStandardMaterial vertexColors roughness={0.85} side={THREE.DoubleSide} />
+    </instancedMesh>
+  );
+}
+
+/** A sea turtle that glides across the reef once it's alive again. */
+function SeaTurtle() {
+  const group = useRef<THREE.Group>(null);
+  const flipL = useRef<THREE.Mesh>(null);
+  const flipR = useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    const g = group.current;
+    if (!g) return;
+    const t = state.clock.elapsedTime;
+    const a = t * 0.055;
+    const r = 13;
+    const x = Math.cos(a) * r;
+    const z = -11 + Math.sin(a) * r * 0.6;
+    const y = -0.6 + Math.sin(t * 0.22) * 0.8;
+    g.position.set(x, y, z);
+    g.rotation.y = -a + Math.PI / 2;
+    g.rotation.z = Math.sin(t * 0.3) * 0.09;
+    const l = lifeAt(x, y, z);
+    g.scale.setScalar(0.9 * l);
+    g.visible = l > 0.02;
+    const flap = Math.sin(t * 1.5) * 0.5;
+    if (flipL.current) flipL.current.rotation.z = 0.35 + flap;
+    if (flipR.current) flipR.current.rotation.z = -0.35 - flap;
+  });
+
+  return (
+    <group ref={group} scale={0}>
+      {/* shell */}
+      <mesh scale={[1.15, 0.42, 1.5]}>
+        <sphereGeometry args={[1, 18, 14]} />
+        <meshStandardMaterial color="#3d5f4a" roughness={0.75} emissive="#0d3a2e" emissiveIntensity={0.25} />
+      </mesh>
+      {/* head */}
+      <mesh position={[0, 0.08, 1.65]} scale={[0.33, 0.3, 0.42]}>
+        <sphereGeometry args={[1, 12, 10]} />
+        <meshStandardMaterial color="#4f6f57" roughness={0.7} />
+      </mesh>
+      {/* front flippers */}
+      <mesh ref={flipL} position={[1.0, 0, 0.5]} scale={[1.15, 0.09, 0.4]}>
+        <sphereGeometry args={[1, 10, 8]} />
+        <meshStandardMaterial color="#456552" roughness={0.7} />
+      </mesh>
+      <mesh ref={flipR} position={[-1.0, 0, 0.5]} scale={[1.15, 0.09, 0.4]}>
+        <sphereGeometry args={[1, 10, 8]} />
+        <meshStandardMaterial color="#456552" roughness={0.7} />
+      </mesh>
+      {/* rear flippers */}
+      <mesh position={[0.75, 0, -1.05]} scale={[0.55, 0.08, 0.3]}>
+        <sphereGeometry args={[1, 8, 6]} />
+        <meshStandardMaterial color="#456552" roughness={0.7} />
+      </mesh>
+      <mesh position={[-0.75, 0, -1.05]} scale={[0.55, 0.08, 0.3]}>
+        <sphereGeometry args={[1, 8, 6]} />
+        <meshStandardMaterial color="#456552" roughness={0.7} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Manta rays gliding through the upper water column. */
+function Rays({ count }: { count: number }) {
+  const refs = useRef<(THREE.Group | null)[]>([]);
+  const wings = useRef<(THREE.Mesh | null)[]>([]);
+
+  const rays = useMemo(() => {
+    const rand = rng(9182);
+    return Array.from({ length: count }, () => ({
+      r: 9 + rand() * 8,
+      y: 1.5 + rand() * 4,
+      speed: 0.03 + rand() * 0.03,
+      phase: rand() * Math.PI * 2,
+      scale: 0.8 + rand() * 0.6,
+    }));
+  }, [count]);
+
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    rays.forEach((ray, i) => {
+      const g = refs.current[i];
+      if (!g) return;
+      const a = t * ray.speed + ray.phase;
+      const x = Math.cos(a) * ray.r;
+      const z = -12 + Math.sin(a) * ray.r * 0.7;
+      const y = ray.y + Math.sin(t * 0.3 + ray.phase) * 0.7;
+      g.position.set(x, y, z);
+      g.rotation.y = -a + Math.PI / 2;
+      const l = lifeAt(x, y, z);
+      g.scale.setScalar(ray.scale * l);
+      g.visible = l > 0.02;
+      const w = wings.current[i];
+      if (w) w.rotation.x = Math.sin(t * 1.1 + ray.phase) * 0.35;
+    });
+  });
+
+  return (
+    <>
+      {rays.map((_, i) => (
+        <group
+          key={i}
+          ref={(el) => {
+            refs.current[i] = el;
+          }}
+          scale={0}
+        >
+          <mesh
+            ref={(el) => {
+              wings.current[i] = el;
+            }}
+            rotation={[0, 0, 0]}
+            scale={[2.4, 0.12, 1.5]}
+          >
+            <sphereGeometry args={[1, 14, 10]} />
+            <meshStandardMaterial
+              color="#20343f"
+              roughness={0.6}
+              emissive="#0a2a33"
+              emissiveIntensity={0.3}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+          {/* tail */}
+          <mesh position={[0, 0, -1.6]} scale={[0.05, 0.05, 1.4]}>
+            <cylinderGeometry args={[1, 1, 1, 5]} />
+            <meshStandardMaterial color="#20343f" roughness={0.7} />
+          </mesh>
+        </group>
+      ))}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Fish shoal — only visible once the reef is alive                     */
 /* ------------------------------------------------------------------ */
 function Fish({ count }: { count: number }) {
