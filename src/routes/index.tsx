@@ -5,7 +5,7 @@ import { ReefCanvas } from "@/components/reef/ReefCanvas";
 import { Reveal } from "@/components/site/Reveal";
 import { FactCard, type Fact } from "@/components/site/FactCard";
 import { RestoreNode } from "@/components/site/RestoreNode";
-import { reefState, triggerRestore } from "@/components/reef/reefState";
+import { reefState, setScroll, triggerRestore } from "@/components/reef/reefState";
 
 const TITLE = "The Last Reef — An Interactive Story of Coral Loss and Recovery";
 const DESCRIPTION =
