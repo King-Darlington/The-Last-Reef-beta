@@ -5,8 +5,16 @@ import { ReefCanvas } from "@/components/reef/ReefCanvas";
 import { Reveal } from "@/components/site/Reveal";
 import { FactCard, type Fact } from "@/components/site/FactCard";
 import { RestoreNode } from "@/components/site/RestoreNode";
-import { reefState, setScroll, triggerRestore } from "@/components/reef/reefState";
-import { isAudioEnabled, playRestoreCue, setAudioEnabled } from "@/lib/reefAudio";
+import { SoundToggle } from "@/components/site/SoundToggle";
+import { reefLife, setScroll, triggerRestore } from "@/components/reef/reefState";
+import {
+  hasAudioChoice,
+  isAudioEnabled,
+  playRestoreCue,
+  setAmbienceLife,
+  setAudioEnabled,
+  startAmbience,
+} from "@/lib/reefAudio";
 
 const TITLE = "The Last Reef — An Interactive Story of Coral Loss and Recovery";
 const DESCRIPTION =
