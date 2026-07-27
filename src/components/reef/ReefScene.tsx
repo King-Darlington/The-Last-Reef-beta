@@ -200,7 +200,7 @@ const glowFragment = /* glsl */ `
     if (d > 0.5) discard;
     float core = smoothstep(0.5, 0.0, d);
     float halo = pow(core, 3.0);
-    gl_FragColor = vec4(vColor * (0.3 + halo * 0.6), core * halo * vAlpha * uOpacity * 0.22);
+    gl_FragColor = vec4(vColor * (0.3 + halo * 0.6), core * halo * vAlpha * uOpacity * 0.5);
   }
 `;
 
@@ -293,7 +293,7 @@ function ParticleLayer({ cfg }: { cfg: LayerConfig }) {
     if (matRef.current) {
       matRef.current.uniforms.uTime.value = t;
       matRef.current.uniforms.uLife.value = l;
-      matRef.current.uniforms.uOpacity.value = cfg.opacity * (0.12 + l * 0.4);
+      matRef.current.uniforms.uOpacity.value = cfg.opacity * (0.14 + l * 0.75);
       matRef.current.uniforms.uFlicker.value = cfg.flicker * (0.25 + l);
     }
   });
@@ -689,8 +689,8 @@ function Effects({ low }: { low: boolean }) {
   return (
     <EffectComposer enableNormalPass={false}>
       <Bloom
-        intensity={low ? 0.7 : 1.1}
-        luminanceThreshold={0.42}
+        intensity={low ? 0.8 : 1.25}
+        luminanceThreshold={0.3}
         luminanceSmoothing={0.5}
         mipmapBlur
       />
