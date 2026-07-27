@@ -233,14 +233,10 @@ function LastReef() {
           nursery-grown fragments onto damaged reefs — and some of them are spawning again.
         </Reveal>
 
-        <div className="mt-20">
-          <RestoreNode
-            restored={restored}
-            onRestore={restore}
-            audioOn={audioOn}
-            onToggleAudio={toggleAudio}
-          />
+        <div className="mt-16 sm:mt-20">
+          <RestoreNode restored={restored} onRestore={restore} />
         </div>
+
       </section>
 
       {/* ------------------------------------------------ BEAT 3 */}
