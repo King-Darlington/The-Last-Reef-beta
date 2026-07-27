@@ -57,7 +57,8 @@ const FACTS: Fact[] = [
 
 function LastReef() {
   const [restored, setRestored] = useState(false);
-  const [audioOn, setAudioOn] = useState(true);
+  const [audioOn, setAudioOn] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll();
   const heroOpacity = useTransform(scrollYProgress, [0, 0.12], [1, 0]);
@@ -69,10 +70,23 @@ function LastReef() {
 
   useEffect(() => {
     setScroll(0);
-    setAudioOn(isAudioEnabled());
+    const on = isAudioEnabled();
+    setAudioOn(on);
+    if (on) startAmbience();
+    // gentle invitation to unmute, only until they've made a choice
+    if (!hasAudioChoice()) {
+      const t = window.setTimeout(() => setShowPrompt(true), 3500);
+      return () => window.clearTimeout(t);
+    }
   }, []);
 
-  const restore = (e: React.MouseEvent<HTMLButtonElement>) => {
+  // keep the ambience timbre in step with the reef's transformation
+  useEffect(() => {
+    const id = window.setInterval(() => setAmbienceLife(reefLife()), 150);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const restore = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (restored) return;
     const r = e.currentTarget.getBoundingClientRect();
     // normalised device coords of the trigger, so the wave radiates from it
@@ -85,13 +99,17 @@ function LastReef() {
   };
 
   const toggleAudio = () => {
-    setAudioEnabled(!audioOn);
-    setAudioOn(!audioOn);
+    const next = !audioOn;
+    setAudioEnabled(next);
+    setAudioOn(next);
+    setShowPrompt(false);
   };
 
   return (
     <div ref={containerRef} className="relative">
       <ReefCanvas />
+      <SoundToggle on={audioOn} onToggle={toggleAudio} showPrompt={showPrompt} />
+
 
       {/* ---------------------------------------------------------- HERO */}
       <section className="relative flex min-h-screen flex-col items-center justify-center px-6 text-center">
