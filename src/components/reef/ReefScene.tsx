@@ -845,7 +845,7 @@ function Rays({ count }: { count: number }) {
             />
           </mesh>
           {/* tail */}
-          <mesh position={[0, 0, -1.6]} scale={[0.05, 0.05, 1.4]}>
+          <mesh position={[0, 0, -1.6]} rotation={[Math.PI / 2, 0, 0]} scale={[0.05, 1.4, 0.05]}>
             <cylinderGeometry args={[1, 1, 1, 5]} />
             <meshStandardMaterial color="#20343f" roughness={0.7} />
           </mesh>
@@ -1162,8 +1162,13 @@ export default function ReefScene() {
       <LightShafts />
       <CoralField count={low ? 20 : 54} />
       <Seafloor />
+      <Kelp count={low ? 10 : 24} />
+      <Anemones count={low ? 7 : 16} />
+      <Urchins count={low ? 5 : 12} />
       <ParticleField low={low} />
       <Fish count={low ? 10 : 34} />
+      <Rays count={low ? 1 : 2} />
+      <SeaTurtle />
       <Effects low={low} />
     </Canvas>
   );
